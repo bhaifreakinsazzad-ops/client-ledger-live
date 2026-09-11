@@ -9,6 +9,8 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   CalendarClock,
+  Plus,
+  MoreHorizontal,
 } from "lucide-react";
 import { useStore } from "@/lib/store";
 import {
@@ -53,8 +55,11 @@ const Dashboard = () => {
   const catData = Array.from(catSum.entries()).map(([name, v]) => ({
     name,
     Received: v.received,
-    Expense: v.expense,
+    Due: v.payable,
     Receivable: v.receivable,
+    Cost: v.expense,
+    Profit: v.received - v.expense,
+    "Previous Due": 0,
   }));
 
   const reminders = useMemo(() => {
@@ -68,6 +73,10 @@ const Dashboard = () => {
   const activeWorks = data.works.filter(
     (w) => w.status === "Running" || w.status === "Issue",
   ).length;
+  const pendingWorks = useMemo(() => data.works
+    .filter((w) => w.status === "Pending")
+    .sort((a, b) => (a.dueDate || "9999").localeCompare(b.dueDate || "9999"))
+    .slice(0, 6), [data.works]);
 
   return (
     <div className="space-y-6">
@@ -82,19 +91,10 @@ const Dashboard = () => {
               Beneficiary, Work  Transactions summary  
             </p>
           </div>
-          <div className="flex gap-2">
-            <Link
-              to="/clients"
-              className="rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-elegant"
-            >
-              + New Client
-            </Link>
-            <Link
-              to="/reports"
-              className="rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"
-            >
-              View Reports
-            </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link to="/clients" className="inline-flex items-center gap-1.5 rounded-lg gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-elegant"><Plus className="h-4 w-4" /> Add Beneficiary</Link>
+            <Link to="/clients" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"><Plus className="h-4 w-4" /> Add Work</Link>
+            <Link to="/movements" className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-background px-4 py-2 text-sm font-medium text-foreground hover:bg-muted"><Plus className="h-4 w-4" /> Add Movement</Link>
           </div>
         </div>
       </section>
@@ -261,122 +261,31 @@ const Dashboard = () => {
                   }}
                 />
                 <Legend wrapperStyle={{ fontSize: "12px" }} />
-                <Bar
-                  dataKey="Received"
-                  fill="hsl(var(--primary))"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="Expense"
-                  fill="hsl(var(--destructive))"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="Receivable"
-                  fill="hsl(var(--warning))"
-                  radius={[4, 4, 0, 0]}
-                />
+                <Bar dataKey="Received" fill="hsl(var(--success))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Due" fill="hsl(var(--warning))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Receivable" fill="hsl(var(--info))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Cost" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Profit" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Previous Due" fill="hsl(var(--muted-foreground))" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
       </section>
 
-      {/* Reminders + Top receivables */}
-      <section className="grid gap-4 lg:grid-cols-2">
+      {/* Work lists and outstanding beneficiaries */}
+      <section className="grid gap-4 xl:grid-cols-3">
         <div className="card-surface p-5">
-          <div className="mb-4 flex items-center gap-2">
-            <CalendarClock className="h-4 w-4 text-warning" />
-            <h3 className="text-sm font-semibold">
-              Upcoming Due Dates / Upcoming deadlines
-            </h3>
-          </div>
-          <div className="space-y-2">
-            {reminders.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No upcoming deadlines.
-              </p>
-            )}
-            {reminders.map((w) => {
-              const client = data.clients.find((c) => c.id === w.clientId);
-              const overdue = w.days < 0;
-              const soon = w.days >= 0 && w.days <= 3;
-              return (
-                <Link
-                  key={w.id}
-                  to={`/clients/${w.clientId}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{w.title}</p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {client?.name}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-muted-foreground">
-                      {formatDate(w.dueDate)}
-                    </p>
-                    <span
-                      className={
-                        overdue
-                          ? "text-xs font-semibold text-destructive"
-                          : soon
-                            ? "text-xs font-semibold text-warning"
-                            : "text-xs text-muted-foreground"
-                      }
-                    >
-                      {overdue
-                        ? `${Math.abs(w.days)}d overdue`
-                        : w.days === 0
-                          ? "Today"
-                          : `in ${w.days}d`}
-                    </span>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
+          <div className="mb-4 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><Clock className="h-4 w-4 text-warning" /><h3 className="text-sm font-semibold">Long-pending Works</h3></div><Link to="/clients?status=Pending" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">More <MoreHorizontal className="h-3.5 w-3.5" /></Link></div>
+          <div className="space-y-2">{pendingWorks.slice(0, 4).map((w) => { const client=data.clients.find(c=>c.id===w.clientId); return <Link key={w.id} to={`/clients/${w.clientId}`} className="block rounded-lg border border-border p-3 hover:bg-muted"><p className="truncate text-sm font-medium">{w.title}</p><p className="truncate text-xs text-muted-foreground">{client?.name} · {w.dueDate ? formatDate(w.dueDate) : "No deadline"}</p></Link> })}{pendingWorks.length===0 && <p className="text-sm text-muted-foreground">No pending works.</p>}</div>
         </div>
-
         <div className="card-surface p-5">
-          <h3 className="mb-4 text-sm font-semibold">
-            Top Outstanding / Top Outstanding
-          </h3>
-          <div className="space-y-2">
-            {data.clients
-              .map((c) => ({
-                client: c,
-                bal: clientBalance(data.transactions, c.id),
-              }))
-              .filter((x) => x.bal.outstanding > 0)
-              .sort((a, b) => b.bal.outstanding - a.bal.outstanding)
-              .slice(0, 6)
-              .map(({ client, bal }) => (
-                <Link
-                  key={client.id}
-                  to={`/clients/${client.id}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">
-                      {client.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {client.category}
-                    </p>
-                  </div>
-                  <span className="text-sm font-semibold text-info">
-                    {formatBDT(bal.outstanding)}
-                  </span>
-                </Link>
-              ))}
-            {!data.clients.some(
-              (c) => clientBalance(data.transactions, c.id).outstanding > 0,
-            ) && (
-              <p className="text-sm text-muted-foreground">No receivables.</p>
-            )}
-          </div>
+          <div className="mb-4 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><CalendarClock className="h-4 w-4 text-warning" /><h3 className="text-sm font-semibold">Upcoming Deadlines</h3></div><Link to="/clients?view=deadlines" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">More <MoreHorizontal className="h-3.5 w-3.5" /></Link></div>
+          <div className="space-y-2">{reminders.slice(0, 4).map((w) => { const client=data.clients.find(c=>c.id===w.clientId); const overdue=w.days<0; return <Link key={w.id} to={`/clients/${w.clientId}`} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted"><div className="min-w-0"><p className="truncate text-sm font-medium">{w.title}</p><p className="truncate text-xs text-muted-foreground">{client?.name}</p></div><span className={overdue?"text-xs font-semibold text-destructive":"text-xs text-muted-foreground"}>{overdue?`${Math.abs(w.days)}d overdue`:w.days===0?"Today":`in ${w.days}d`}</span></Link> })}{reminders.length===0 && <p className="text-sm text-muted-foreground">No upcoming deadlines.</p>}</div>
+        </div>
+        <div className="card-surface p-5">
+          <div className="mb-4 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Top Outstanding Beneficiaries</h3><Link to="/clients?view=outstanding" className="inline-flex items-center gap-1 text-xs text-primary hover:underline">More <MoreHorizontal className="h-3.5 w-3.5" /></Link></div>
+          <div className="space-y-2">{data.clients.map((c) => ({client:c, bal:clientBalance(data.transactions,c.id)})).filter(x=>x.bal.outstanding>0).sort((a,b)=>b.bal.outstanding-a.bal.outstanding).slice(0,4).map(({client,bal})=><Link key={client.id} to={`/clients/${client.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3 hover:bg-muted"><div className="min-w-0"><p className="truncate text-sm font-medium">{client.name}</p><p className="text-xs text-muted-foreground">{client.category}</p></div><span className="text-sm font-semibold text-info">{formatBDT(bal.outstanding)}</span></Link>)}{!data.clients.some(c=>clientBalance(data.transactions,c.id).outstanding>0)&&<p className="text-sm text-muted-foreground">No outstanding balances.</p>}</div>
         </div>
       </section>
     </div>
